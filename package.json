@@ -1,0 +1,15 @@
+{
+    "name": "bowcourseregistration",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "start": "concurrently \"npm start --prefix frontend\" \"npm start --prefix backend\"",
+        "install-all": "npm install --prefix frontend && npm install --prefix backend",
+        "build": "npm run build --prefix frontend",
+        "start-backend": "npm start --prefix backend",
+        "start-frontend": "npm start --prefix frontend"
+    },
+    "devDependencies": {
+        "concurrently": "^7.6.0"
+    }
+}
