@@ -18,17 +18,28 @@ function MyPrograms() {
 
     const fetchPrograms = async () => {
       try {
-        // Fetch registered program
-        const registeredProgramResponse = await fetch(`http://localhost:5001/api/users/programs`, {
+        // Fetch the currently registered program(s)
+        const registeredProgramResponse = await fetch('http://localhost:5001/api/users/programs', {
           headers: { Authorization: `Bearer ${token}` },
         });
 
+        let registeredProgramData = null;
         if (registeredProgramResponse.ok) {
-          const program = await registeredProgramResponse.json();
-          setMyProgram(program);
+          const data = await registeredProgramResponse.json();
+          // Handle the possibility that 'data' might be an array
+          if (Array.isArray(data)) {
+            if (data.length > 0) {
+              registeredProgramData = data[0]; // Take the first program if array is not empty
+            } else {
+              registeredProgramData = null; // No programs registered
+            }
+          } else {
+            // If data is not an array, assume it's a single object or null
+            registeredProgramData = data || null;
+          }
         }
 
-        // Fetch all programs
+        // Fetch all available programs
         const availableProgramsResponse = await fetch('http://localhost:5001/api/programs', {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -39,8 +50,12 @@ function MyPrograms() {
 
         const programs = await availableProgramsResponse.json();
 
-        // Exclude the registered program from available programs
-        const filteredPrograms = programs.filter((program) => program.id !== myProgram?.id);
+        // Filter out the currently registered program if one exists
+        const filteredPrograms = registeredProgramData
+          ? programs.filter((p) => p.id !== registeredProgramData.id)
+          : programs;
+
+        setMyProgram(registeredProgramData);
         setAllPrograms(filteredPrograms);
       } catch (error) {
         console.error('Error fetching programs:', error);
@@ -51,28 +66,32 @@ function MyPrograms() {
     };
 
     fetchPrograms();
-  }, [user, token, myProgram]);
+  }, [user, token]);
 
   const handleRegister = async (programId) => {
     try {
       const response = await fetch(`http://localhost:5001/api/programs/subscribe/${programId}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
       });
 
       if (!response.ok) {
         throw new Error('Failed to register for the program');
       }
 
-      const program = await response.json();
-      setMyProgram(program.program); // Update the registered program
+      const data = await response.json();
+      const newRegisteredProgram = data.program;
+      setMyProgram(newRegisteredProgram);
 
-      // Update available programs
-      setAllPrograms(allPrograms.filter((program) => program.id !== programId));
+      // Update the available programs list by removing the just subscribed program
+      setAllPrograms((prevPrograms) => prevPrograms.filter((p) => p.id !== newRegisteredProgram.id));
 
       alert('Successfully registered for the program');
     } catch (error) {
-      console.error('Error registering for program:', error);
+      console.error('Error registering for the program:', error);
       alert('Failed to register for the program');
     }
   };

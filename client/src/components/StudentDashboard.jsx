@@ -15,13 +15,27 @@ function StudentDashboard() {
       let courseError = false;
 
       try {
-        // Fetch registered program
+        // Fetch the registered program(s)
         const programResponse = await api.get('/users/programs', {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (programResponse.data) {
-          setRegisteredProgram(programResponse.data);
+        let data = programResponse.data;
+        // Handle the possibility that 'data' might be an array
+        let programData = null;
+        if (Array.isArray(data)) {
+          if (data.length > 0) {
+            programData = data[0]; // Take the first program if array is not empty
+          } else {
+            programData = null; // No programs registered
+          }
+        } else {
+          // If data is not an array, assume it's a single object or null
+          programData = data || null;
+        }
+
+        if (programData && programData.id) {
+          setRegisteredProgram(programData);
         }
       } catch (err) {
         console.error('Error fetching program:', err);
@@ -29,7 +43,7 @@ function StudentDashboard() {
       }
 
       try {
-        // Fetch registered courses
+        // Fetch the registered courses
         const coursesResponse = await api.get('/users/courses', {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -124,6 +138,12 @@ function StudentDashboard() {
           <Typography>No courses registered yet.</Typography>
         )}
       </Card>
+
+      {error && (
+        <Typography color="danger" sx={{ marginTop: '16px' }}>
+          {error}
+        </Typography>
+      )}
     </Box>
   );
 }

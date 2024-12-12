@@ -18,7 +18,7 @@ router.post('/subscribe/:id', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     try {
-        // Ensure user is not subscribed to another program
+        // Ensure the user is not subscribed to another program
         const existingSubscription = await pool.query(
             'SELECT * FROM users_programs WHERE user_id = $1',
             [userId]
@@ -28,13 +28,29 @@ router.post('/subscribe/:id', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'You are already subscribed to a program. Unsubscribe first.' });
         }
 
-        const result = await pool.query(
+        // Insert the new subscription
+        await pool.query(
             `INSERT INTO users_programs (user_id, program_id) 
-             VALUES ($1, $2) RETURNING *`,
+             VALUES ($1, $2)`,
             [userId, programId]
         );
 
-        res.status(201).json({ message: 'Subscribed to program successfully', program: result.rows[0] });
+        // Fetch the full program details to return to the frontend
+        const programDetails = await pool.query(
+            'SELECT * FROM programs WHERE id = $1',
+            [programId]
+        );
+
+        if (programDetails.rows.length === 0) {
+            return res.status(404).json({ error: 'Program not found after subscription.' });
+        }
+
+        const subscribedProgram = programDetails.rows[0];
+
+        res.status(201).json({
+            message: 'Subscribed to program successfully',
+            program: subscribedProgram
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -46,7 +62,7 @@ router.delete('/unsubscribe/:id', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     try {
-        // Remove courses tied to this program
+        // Remove courses tied to this program from the user
         await pool.query(
             'DELETE FROM users_courses WHERE course_id IN (SELECT id FROM courses WHERE program_id = $1)',
             [programId]

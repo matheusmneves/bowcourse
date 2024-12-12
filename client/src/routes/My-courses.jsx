@@ -19,7 +19,7 @@ function MyCourses() {
     const fetchCourses = async () => {
       try {
         // Fetch user's registered courses
-        const myCoursesResponse = await fetch(`http://localhost:5001/api/users/courses`, {
+        const myCoursesResponse = await fetch('http://localhost:5001/api/users/courses', {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -29,15 +29,14 @@ function MyCourses() {
           setMyCourses(myCoursesData);
         }
 
-        // Fetch available courses
-        const allCoursesResponse = await fetch(
-          user.program_id
-            ? `http://localhost:5001/api/courses?programId=${user.program_id}`
-            : `http://localhost:5001/api/courses`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        // Fetch available courses, optionally filtered by the user's program
+        const allCoursesUrl = user.program_id
+          ? `http://localhost:5001/api/courses?programId=${user.program_id}`
+          : 'http://localhost:5001/api/courses';
+
+        const allCoursesResponse = await fetch(allCoursesUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         if (!allCoursesResponse.ok) {
           throw new Error('Failed to fetch available courses');
@@ -45,7 +44,7 @@ function MyCourses() {
 
         const allCoursesData = await allCoursesResponse.json();
 
-        // Filter out registered courses from available courses
+        // Filter out courses the user is already registered for
         const availableCourses = allCoursesData.filter(
           (course) => !myCoursesData.some((registered) => registered.id === course.id)
         );
@@ -70,8 +69,8 @@ function MyCourses() {
       });
 
       if (response.ok) {
-        // Fetch updated registered courses
-        const updatedCoursesResponse = await fetch(`http://localhost:5001/api/users/courses`, {
+        // After subscribing, refetch the user's registered courses to update the state
+        const updatedCoursesResponse = await fetch('http://localhost:5001/api/users/courses', {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -82,16 +81,15 @@ function MyCourses() {
         const updatedCoursesData = await updatedCoursesResponse.json();
         setMyCourses(updatedCoursesData);
 
-        // Update available courses
-        const updatedAllCourses = allCourses.filter((course) => course.id !== courseId);
-        setAllCourses(updatedAllCourses);
+        // Remove the subscribed course from the available courses
+        setAllCourses((prevCourses) => prevCourses.filter((course) => course.id !== courseId));
 
         alert('Successfully registered for the course');
       } else {
         alert('Failed to register for the course');
       }
     } catch (error) {
-      console.error('Error registering for course:', error);
+      console.error('Error registering for the course:', error);
       alert('Failed to register for the course');
     }
   };
