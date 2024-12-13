@@ -55,4 +55,45 @@ router.get('/courses', authenticateToken, async (req, res) => {
     }
 });
 
+router.get('/me', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+        const result = await pool.query(
+            `SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.birthday, u.username, u.role, u.program_id, 
+                    p.name AS program_name, p.description AS program_description
+             FROM users u
+             LEFT JOIN programs p ON p.id = u.program_id
+             WHERE u.id = $1`,
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const userData = result.rows[0];
+
+        const responseData = {
+          id: userData.id,
+          firstName: userData.first_name,
+          lastName: userData.last_name,
+          email: userData.email,
+          phone: userData.phone,
+          birthday: userData.birthday,
+          username: userData.username,
+          role: userData.role,
+          program_id: userData.program_id,
+          program: userData.program_name ? {
+            name: userData.program_name,
+            description: userData.program_description
+          } : null
+        };
+
+        res.status(200).json(responseData);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
