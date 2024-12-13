@@ -1,6 +1,9 @@
 const express = require('express');
 const { signup, login } = require('../controllers/userController');
 const { authenticateToken } = require('../middleware/authMiddleware');
+// If you have an isAdmin middleware, import it as well:
+// const { isAdmin } = require('../middleware/authMiddleware');
+
 const router = express.Router();
 const pool = require('../config/db');
 
@@ -91,6 +94,89 @@ router.get('/me', authenticateToken, async (req, res) => {
         };
 
         res.status(200).json(responseData);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /messages: Student sends a message to admin
+router.post('/messages', authenticateToken, async (req, res) => {
+    const { subject, message } = req.body;
+    const studentId = req.user.id;
+
+    if (!subject || !message) {
+        return res.status(400).json({ error: 'Subject and message are required.' });
+    }
+
+    try {
+        const result = await pool.query(
+            `INSERT INTO messages (student_id, admin_id, subject, message, status, sent_at)
+             VALUES ($1, NULL, $2, $3, 'open', NOW()) RETURNING *`,
+            [studentId, subject, message]
+        );
+
+        res.status(201).json({ message: 'Message sent successfully', data: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /admin/messages: Admin fetches all messages with optional filters
+// Assuming you have isAdmin middleware:
+router.get('/admin/messages', authenticateToken, /*isAdmin,*/ async (req, res) => {
+    const { name, subject, status } = req.query;
+
+    let query = `
+        SELECT m.id, m.subject, m.message, m.status, m.sent_at,
+               u.first_name || ' ' || u.last_name AS student_name,
+               u.email AS student_email
+        FROM messages m
+        JOIN users u ON u.id = m.student_id
+        WHERE 1=1
+    `;
+
+    const values = [];
+
+    if (name) {
+        values.push(`%${name}%`);
+        query += ` AND (u.first_name || ' ' || u.last_name) ILIKE $${values.length}`;
+    }
+
+    if (subject) {
+        values.push(`%${subject}%`);
+        query += ` AND m.subject ILIKE $${values.length}`;
+    }
+
+    if (status) {
+        values.push(status);
+        query += ` AND m.status = $${values.length}`;
+    }
+
+    query += ` ORDER BY m.sent_at DESC`;
+
+    try {
+        const result = await pool.query(query, values);
+        res.status(200).json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /admin/messages/:id/resolve: Admin marks a message as resolved
+router.put('/admin/messages/:id/resolve', authenticateToken, /*isAdmin,*/ async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = await pool.query(
+            `UPDATE messages SET status = 'resolved' WHERE id = $1 RETURNING *`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Message not found.' });
+        }
+
+        res.status(200).json({ message: 'Message resolved successfully', data: result.rows[0] });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

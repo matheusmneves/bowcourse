@@ -1,39 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Input, Textarea, Button, Card, Stack } from '@mui/joy';
-import { useAuth } from '../context/AuthContext'; // Ensure useAuth is imported
+import { useAuth } from '../context/AuthContext';
 
 function Contact() {
-  const { user } = useAuth();
-
-  console.log('Logged in user:', user);
-
-
-  const localUsers = JSON.parse(localStorage.getItem('users')) || [];
-
-  const loggedInUser = localUsers.find((u) => u.username === user?.username);
-
+  const { user, token } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     subject: '',
     message: '',
   });
-
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Fetch user info on component mount
   useEffect(() => {
-    const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
+    // Fetch the user's profile data from /me to pre-fill name and email
+    const fetchUserProfile = async () => {
+      if (user && token) {
+        try {
+          const response = await fetch('http://localhost:5001/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-    if (loggedInUser) {
-      setFormData((prevData) => ({
-        ...prevData,
-        name: loggedInUser.name,
-        email: loggedInUser.email,
-      }));
-    }
-  }, []);
+          if (response.ok) {
+            const data = await response.json();
+            setFormData((prev) => ({
+              ...prev,
+              name: data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : prev.name,
+              email: data.email || prev.email,
+            }));
+          } else {
+            console.log('Could not fetch user profile data or incomplete user info.');
+          }
+        } catch (err) {
+          console.error('Error fetching user profile:', err);
+        }
+      }
+    };
+
+    fetchUserProfile();
+  }, [user, token]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -49,36 +55,39 @@ function Contact() {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
-      return;
+    if (!validateForm()) return;
+
+    try {
+      const response = await fetch('http://localhost:5001/api/users/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          subject: formData.subject,
+          message: formData.message,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      setSuccessMessage('Your message has been sent successfully!');
+      setErrors({});
+      setFormData((prevData) => ({
+        ...prevData,
+        subject: '',
+        message: '',
+      }));
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setErrors({ global: 'Failed to send message. Please try again.' });
     }
-
-    const existingMessages = JSON.parse(localStorage.getItem('tickets')) || [];
-
-    const newTicket = {
-      id: existingMessages.length + 1,
-      name: formData.name,
-      email: formData.email,
-      subject: formData.subject,
-      message: formData.message,
-      date: new Date().toLocaleString(),
-      status: 'open',
-    };
-
-    const updatedMessages = [...existingMessages, newTicket];
-    localStorage.setItem('tickets', JSON.stringify(updatedMessages));
-
-    setSuccessMessage('Your message has been sent successfully!');
-
-    // Reset only subject and message, not name and email
-    setFormData((prevData) => ({
-      ...prevData,
-      subject: '',
-      message: '',
-    }));
   };
 
   return (
@@ -93,20 +102,18 @@ function Contact() {
               type="text"
               name="name"
               value={formData.name}
-              readOnly
-              fullWidth
               placeholder="Your Name"
-              sx={{ backgroundColor: '#f0f0f0' }} // Optional: gray out the input to indicate it's not editable
+              onChange={handleInputChange}
+              fullWidth
             />
 
             <Input
               type="email"
               name="email"
               value={formData.email}
-              readOnly
-              fullWidth
               placeholder="Your Email"
-              sx={{ backgroundColor: '#f0f0f0' }} // Optional: gray out the input to indicate it's not editable
+              onChange={handleInputChange}
+              fullWidth
             />
 
             <Input
@@ -134,6 +141,12 @@ function Contact() {
             {errors.message && (
               <Typography level="body2" color="danger">
                 {errors.message}
+              </Typography>
+            )}
+
+            {errors.global && (
+              <Typography level="body2" color="danger">
+                {errors.global}
               </Typography>
             )}
 

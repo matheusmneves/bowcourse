@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, Card, Stack, Button, Divider, Input, Select, Option } from '@mui/joy';
+import { useAuth } from '../context/AuthContext';
 
 function AdmContact() {
+  const { token, user } = useAuth();  
   const [messages, setMessages] = useState([]);
   const [filteredMessages, setFilteredMessages] = useState([]);
   const [filters, setFilters] = useState({
@@ -10,36 +12,71 @@ function AdmContact() {
     status: '',
   });
 
-  // Fetch tickets from localStorage on component mount
   useEffect(() => {
-    const storedMessages = JSON.parse(localStorage.getItem('tickets')) || [];
-    setMessages(storedMessages);
-    setFilteredMessages(storedMessages);
-  }, []);
+    // Fetch messages from the backend if user is admin
+    if (user && user.role === 'admin' && token) {
+      fetchMessages();
+    }
+  }, [user, token]);
 
-  // Handle resolve action
-  const handleResolve = (id) => {
-    const updatedMessages = messages.map((message) =>
-      message.id === id ? { ...message, status: 'resolved' } : message
-    );
-    setMessages(updatedMessages);
-    localStorage.setItem('tickets', JSON.stringify(updatedMessages));
-    applyFilters(updatedMessages); // Update the filtered list
+  const fetchMessages = async () => {
+    const queryParams = new URLSearchParams();
+    if (filters.name) queryParams.append('name', filters.name);
+    if (filters.subject) queryParams.append('subject', filters.subject);
+    if (filters.status) queryParams.append('status', filters.status);
+
+    try {
+      const response = await fetch(`http://localhost:5001/api/users/admin/messages?${queryParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch messages');
+      }
+
+      const data = await response.json();
+      setMessages(data);
+      setFilteredMessages(data);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
   };
 
-  // Handle input change for filters
+  const handleResolve = async (id) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/users/admin/messages/${id}/resolve`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to resolve message');
+      }
+
+      const updatedMessages = messages.map((msg) =>
+        msg.id === id ? { ...msg, status: 'resolved' } : msg
+      );
+      setMessages(updatedMessages);
+      applyFilters(updatedMessages, filters);
+    } catch (error) {
+      console.error('Error resolving message:', error);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFilters({ ...filters, [name]: value });
-    applyFilters(messages, { ...filters, [name]: value });
+    const updatedFilters = { ...filters, [name]: value };
+    setFilters(updatedFilters);
+    applyFilters(messages, updatedFilters);
   };
 
-  // Apply filters based on the current filter values
-  const applyFilters = (messages, updatedFilters = filters) => {
-    const filtered = messages.filter((message) => {
+  const applyFilters = (messageList, updatedFilters = filters) => {
+    const filtered = messageList.filter((message) => {
+      const studentName = message.student_name || ''; 
+      const subj = message.subject || '';
       return (
-        (updatedFilters.name === '' || message.name.toLowerCase().includes(updatedFilters.name.toLowerCase())) &&
-        (updatedFilters.subject === '' || message.subject.toLowerCase().includes(updatedFilters.subject.toLowerCase())) &&
+        (updatedFilters.name === '' || studentName.toLowerCase().includes(updatedFilters.name.toLowerCase())) &&
+        (updatedFilters.subject === '' || subj.toLowerCase().includes(updatedFilters.subject.toLowerCase())) &&
         (updatedFilters.status === '' || message.status === updatedFilters.status)
       );
     });
@@ -52,7 +89,6 @@ function AdmContact() {
         Admin - Student Messages
       </Typography>
 
-      {/* Filters */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
         <Input
           name="name"
@@ -81,43 +117,42 @@ function AdmContact() {
         </Select>
       </Box>
 
-      {/* Message list */}
       {filteredMessages.length > 0 ? (
-        filteredMessages.map((message) => (
+        filteredMessages.map((msg) => (
           <Card
-            key={message.id}
+            key={msg.id}
             variant="outlined"
             sx={{
               mb: 3,
               p: 3,
               border: '1px solid',
-              borderColor: message.status === 'resolved' ? 'green' : 'gray',
+              borderColor: msg.status === 'resolved' ? 'green' : 'gray',
             }}
           >
             <Stack spacing={2}>
               <Typography level="h4" sx={{ fontWeight: 'bold' }}>
-                {message.subject}
+                {msg.subject}
               </Typography>
               <Typography level="body2">
-                <strong>Name:</strong> {message.name}
+                <strong>Name:</strong> {msg.student_name}
               </Typography>
               <Typography level="body2">
-                <strong>Email:</strong> {message.email}
+                <strong>Email:</strong> {msg.student_email}
               </Typography>
               <Typography level="body2">
-                <strong>Date:</strong> {message.date}
+                <strong>Date:</strong> {new Date(msg.sent_at).toLocaleString()}
               </Typography>
               <Divider />
               <Typography level="body2">
-                <strong>Message:</strong> {message.message}
+                <strong>Message:</strong> {msg.message}
               </Typography>
               <Divider />
-              <Typography level="body2" color={message.status === 'resolved' ? 'success' : 'danger'}>
-                <strong>Status:</strong> {message.status}
+              <Typography level="body2" color={msg.status === 'resolved' ? 'success' : 'danger'}>
+                <strong>Status:</strong> {msg.status}
               </Typography>
 
-              {message.status !== 'resolved' && (
-                <Button onClick={() => handleResolve(message.id)} variant="solid" color="primary">
+              {msg.status !== 'resolved' && (
+                <Button onClick={() => handleResolve(msg.id)} variant="solid" color="primary">
                   Mark as Resolved
                 </Button>
               )}
