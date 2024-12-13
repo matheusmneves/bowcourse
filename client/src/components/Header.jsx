@@ -174,6 +174,9 @@ export default function Header() {
                       <MenuItem component={Link} to="/adm-contact">
                         Contact
                       </MenuItem>
+                      <MenuItem component={Link} to="/adm-student-list">
+                        Student List
+                      </MenuItem>
                     </>
                   )}
                 </Menu>

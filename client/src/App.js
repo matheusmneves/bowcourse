@@ -21,6 +21,7 @@ import AdmAddPrograms from './routes/Adm-add-programs';
 import AdmContact from './routes/Adm-contact';
 import api from './api';
 import { useEffect } from 'react';
+import AdmStudentList from './routes/Adm-student-list';
 
 
 function App() {
@@ -92,6 +93,10 @@ function App() {
               <Route
                 path="/adm-contact"
                 element={<PrivateRoute role="admin"><AdmContact /></PrivateRoute>}
+              />
+              <Route
+                path="/adm-student-list"
+                element={<PrivateRoute role="admin"><AdmStudentList /></PrivateRoute>}
               />
             </Routes>
           </div>

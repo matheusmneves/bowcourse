@@ -1,6 +1,6 @@
 const express = require('express');
 const { signup, login } = require('../controllers/userController');
-const { authenticateToken } = require('../middleware/authMiddleware');
+const { authenticateToken, isAdmin } = require('../middleware/authMiddleware');
 // If you have an isAdmin middleware, import it as well:
 // const { isAdmin } = require('../middleware/authMiddleware');
 
@@ -181,5 +181,35 @@ router.put('/admin/messages/:id/resolve', authenticateToken, /*isAdmin,*/ async 
         res.status(500).json({ error: err.message });
     }
 });
+
+router.get('/students', authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const studentsResult = await pool.query(
+        `SELECT u.id, u.first_name, u.last_name, u.email, u.role, p.name AS program_name
+         FROM users u
+         LEFT JOIN programs p ON p.id = u.program_id
+         WHERE u.role = 'student'`
+      );
+  
+      const students = studentsResult.rows;
+  
+      // For each student, fetch their courses
+      for (let student of students) {
+        const coursesResult = await pool.query(
+          `SELECT c.id, c.course_code, c.name, c.description, c.term, c.start_date, c.end_date, c.program_id
+           FROM courses c
+           JOIN users_courses uc ON uc.course_id = c.id
+           WHERE uc.user_id = $1`,
+          [student.id]
+        );
+        student.courses = coursesResult.rows;
+      }
+  
+      res.status(200).json(students);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+  
 
 module.exports = router;
