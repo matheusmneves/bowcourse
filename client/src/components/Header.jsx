@@ -213,10 +213,12 @@ export default function Header() {
                   placement="bottom-start"
                   sx={{ width: 200 }}
                 >
-                  <MenuItem component={Link} to="/profile">
-                    <Person sx={{ mr: 1 }} />
-                    Profile
-                  </MenuItem>
+                  {user.role === "student" && (
+                    <MenuItem component={Link} to="/profile">
+                      <Person sx={{ mr: 1 }} />
+                      Profile
+                    </MenuItem>
+                  )}
                   <MenuItem onClick={logout}>
                     <LogoutIcon sx={{ mr: 1 }} />
                     Logout
